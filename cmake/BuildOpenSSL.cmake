@@ -118,7 +118,11 @@ else()
     
     # disable building tests
     if (NOT OPENSSL_ENABLE_TESTS)
-        set(CONFIGURE_OPENSSL_MODULES ${CONFIGURE_OPENSSL_MODULES} no-tests)
+        if (${OPENSSL_BUILD_VERSION} VERSION_LESS 1.1.1)
+            set(CONFIGURE_OPENSSL_MODULES ${CONFIGURE_OPENSSL_MODULES} no-unit-test)
+        else()
+            set(CONFIGURE_OPENSSL_MODULES ${CONFIGURE_OPENSSL_MODULES} no-tests)
+        endif()
         set(COMMAND_TEST "true")
     endif()
 
