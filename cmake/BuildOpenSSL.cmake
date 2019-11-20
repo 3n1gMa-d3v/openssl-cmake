@@ -119,7 +119,7 @@ else()
     endif()
 
     # set OpenSSL API compatibility version
-    add_definitions(-DOPENSSL_API_COMPAT=0x10100000L)
+#    add_definitions(-DOPENSSL_API_COMPAT=0x10100000L)
 
     # cross-compiling
     if (CROSS)
@@ -173,7 +173,15 @@ else()
         
         # have to surround variables with double quotes, otherwise they will be merged together without any separator
         set(CC "${CMAKE_C_COMPILER} ${CMAKE_C_COMPILE_OPTIONS_EXTERNAL_TOOLCHAIN}${CMAKE_C_COMPILER_EXTERNAL_TOOLCHAIN} ${CFLAGS} -target ${CMAKE_C_COMPILER_TARGET}")
-        
+
+        message(STATUS "AS: ${AS}")
+        message(STATUS "AR: ${AR}")
+        message(STATUS "LD: ${LD}")
+        message(STATUS "LDFLAGS: ${LDFLAGS}")
+        message(STATUS "CC: ${CC}")
+        message(STATUS "OPENSSL_PLATFORM: ${OPENSSL_PLATFORM}")
+        message(STATUS "ANDROID_TOOLCHAIN_ROOT: ${ANDROID_TOOLCHAIN_ROOT}")
+
         set(COMMAND_CONFIGURE ./Configure ${ANDROID_STRING}-${OPENSSL_PLATFORM} ${CONFIGURE_OPENSSL_PARAMS} ${CONFIGURE_OPENSSL_MODULES})
         set(COMMAND_TEST "true")
     else()                   # detect host system automatically
