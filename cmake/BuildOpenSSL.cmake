@@ -109,7 +109,7 @@ else()
     set(CONFIGURE_OPENSSL_MODULES no-cast no-md2 no-md4 no-mdc2 no-rc4 no-rc5 no-engine no-idea no-mdc2 no-rc5 no-camellia no-ssl3 no-heartbeats no-gost enable-deprecated no-capieng no-comp no-dtls no-psk no-srp no-dso)
 
     # additional configure script parameters
-    set(CONFIGURE_OPENSSL_PARAMS --api=1.1.0 --libdir=lib)
+    set(CONFIGURE_OPENSSL_PARAMS --api=1.0.0 --libdir=lib)
 
     # set install command depending of choice on man page generation
     if (OPENSSL_INSTALL_MAN)
@@ -211,6 +211,7 @@ else()
         COMMAND ${CMAKE_COMMAND} -G ${CMAKE_GENERATOR} ${CMAKE_BINARY_DIR}                    # force CMake-reload
 
         LOG_INSTALL 1
+        LOG_CONFIGURE 1
     )
 
     # set git config values to openssl requirements (no impact on linux though)
