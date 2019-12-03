@@ -42,8 +42,8 @@ endif()
 ProcessorCount(NUM_JOBS)
 set(OS "UNIX")
 
-if (OPENSSL_BUILD_HASH)
-    set(OPENSSL_CHECK_HASH URL_HASH SHA256=${OPENSSL_BUILD_HASH})
+if (OPENSSL_ARCHIVE_HASH)
+    set(OPENSSL_CHECK_HASH URL_HASH SHA256=${OPENSSL_ARCHIVE_HASH})
 endif()
 
 # if already built, do not build again
