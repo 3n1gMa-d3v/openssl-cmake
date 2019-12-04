@@ -48,7 +48,7 @@ endif()
 
 # if already built, do not build again
 if ((EXISTS ${OPENSSL_LIBSSL_PATH}) AND (EXISTS ${OPENSSL_LIBCRYPTO_PATH}))
-    message(WARNING "Not building OpenSSL again. Remove ${OPENSSL_LIBSSL_PATH} and ${OPENSSL_LIBCRYPTO_PATH} for rebuild")
+    message(STATUS "Not building OpenSSL again. Remove ${OPENSSL_LIBSSL_PATH} and ${OPENSSL_LIBCRYPTO_PATH} for rebuild")
 else()
     if (NOT OPENSSL_BUILD_VERSION)
         message(FATAL_ERROR "You must specify OPENSSL_BUILD_VERSION!")
