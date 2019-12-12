@@ -223,6 +223,8 @@ else()
         ALWAYS ON
     )
 
+    ExternalProject_Add_StepTargets(openssl install)
+
     # set, don't abort if it fails (due to variables being empty). To realize this we must only call git if the configs
     # are set globally, otherwise do a no-op command ("echo 1", since "true" is not available everywhere)
     if (GIT_CORE_AUTOCRLF)
