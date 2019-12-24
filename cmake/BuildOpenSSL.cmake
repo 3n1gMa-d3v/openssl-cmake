@@ -210,8 +210,11 @@ else()
         COMMAND ${BUILD_ENV_TOOL} <SOURCE_DIR> ${MAKE_PROGRAM} DESTDIR=${CMAKE_CURRENT_BINARY_DIR} ${INSTALL_OPENSSL}
         COMMAND ${CMAKE_COMMAND} -G ${CMAKE_GENERATOR} ${CMAKE_BINARY_DIR}                    # force CMake-reload
 
-        LOG_INSTALL 1
+        COMMAND cp -r ${OPENSSL_PREFIX}/usr/ ${OPENSSL_PREFIX}/..
+
         LOG_CONFIGURE 1
+        LOG_BUILD 1
+        LOG_INSTALL 1
     )
 
     # set git config values to openssl requirements (no impact on linux though)
