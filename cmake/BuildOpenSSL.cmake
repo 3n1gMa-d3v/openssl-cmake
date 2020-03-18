@@ -106,7 +106,7 @@ else()
     set(BUILD_ENV_TOOL ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/scripts/building_env.py ${OS} ${MSYS_BASH} ${MINGW_MAKE})
 
     # no-dsa no-rc2 no-des break tests, therefore we need them
-    set(CONFIGURE_OPENSSL_MODULES no-cast no-md2 no-md4 no-mdc2 no-rc4 no-rc5 no-engine no-idea no-mdc2 no-rc5 no-camellia no-ssl3 no-heartbeats no-gost enable-deprecated no-capieng no-comp no-dtls no-psk no-srp no-dso)
+    set(CONFIGURE_OPENSSL_MODULES enable-ec_nistp_64_gcc_128 no-cast no-md2 no-md4 no-mdc2 no-rc4 no-rc5 no-idea no-camellia no-ssl3 no-heartbeats no-gost enable-deprecated no-capieng no-comp no-dtls no-psk no-srp no-dso no-whirlpool)
 
     # additional configure script parameters
     set(CONFIGURE_OPENSSL_PARAMS --api=1.0.0 --libdir=lib)
@@ -126,9 +126,6 @@ else()
         set(COMMAND_CONFIGURE ./Configure ${CONFIGURE_OPENSSL_PARAMS} --cross-compile-prefix=${CROSS_PREFIX} ${CROSS_TARGET} ${CONFIGURE_OPENSSL_MODULES})
         set(COMMAND_TEST "true")
     elseif(CROSS_ANDROID)
-        
-        # Android specific configuration options
-        set(CONFIGURE_OPENSSL_MODULES ${CONFIGURE_OPENSSL_MODULES} no-hw)
         
         set(CFLAGS ${CMAKE_C_FLAGS})
         set(CXXFLAGS ${CMAKE_CXX_FLAGS})
