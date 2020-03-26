@@ -82,8 +82,6 @@ else()
     target_include_directories(ssl BEFORE INTERFACE ${OPENSSL_PREFIX}/usr/local/include)
     target_include_directories(crypto BEFORE INTERFACE ${OPENSSL_PREFIX}/usr/local/include)
 
-    set(OPENSSL_INCLUDE_PATH ${OPENSSL_PREFIX}/usr/local/include PARENT_SCOPE)
-
     # add fake targets to common target
     add_dependencies(ssl_lib openssl)
     add_dependencies(crypto_lib openssl)
