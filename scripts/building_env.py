@@ -70,7 +70,10 @@ if os_s == "LINUX_CROSS_ANDROID":
     f.close()
 
     for k, v in expr.findall(content):
-        if k != "PATH":
+        # print('k: ' + k + ', v: ' + v)
+        if "\n" in k.strip():
+            print('Skipping multiline key')
+        elif k != "PATH":
             env[k] = v.replace('"', '')
         else:
             env[k] = v.replace('"', '')+":"+env[k]

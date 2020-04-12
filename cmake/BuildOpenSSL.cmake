@@ -42,13 +42,13 @@ endif()
 ProcessorCount(NUM_JOBS)
 set(OS "UNIX")
 
-if (OPENSSL_BUILD_HASH)
-    set(OPENSSL_CHECK_HASH URL_HASH SHA256=${OPENSSL_BUILD_HASH})
+if (OPENSSL_ARCHIVE_HASH)
+    set(OPENSSL_CHECK_HASH URL_HASH SHA256=${OPENSSL_ARCHIVE_HASH})
 endif()
 
 # if already built, do not build again
 if ((EXISTS ${OPENSSL_LIBSSL_PATH}) AND (EXISTS ${OPENSSL_LIBCRYPTO_PATH}))
-    message(WARNING "Not building OpenSSL again. Remove ${OPENSSL_LIBSSL_PATH} and ${OPENSSL_LIBCRYPTO_PATH} for rebuild")
+    message(STATUS "Not building OpenSSL again. Remove ${OPENSSL_LIBSSL_PATH} and ${OPENSSL_LIBCRYPTO_PATH} for rebuild")
 else()
     if (NOT OPENSSL_BUILD_VERSION)
         message(FATAL_ERROR "You must specify OPENSSL_BUILD_VERSION!")
@@ -56,23 +56,23 @@ else()
 
     if (WIN32 AND NOT CROSS)
         # yep, windows needs special treatment, but neither cygwin nor msys, since they provide an UNIX-like environment
-        
+
         if (MINGW)
             set(OS "WIN32")
             message(WARNING "Building on windows is experimental")
-            
+
             find_program(MSYS_BASH "bash.exe" PATHS "C:/Msys/" "C:/MinGW/msys/" PATH_SUFFIXES "/1.0/bin/" "/bin/"
                     DOC "Path to MSYS installation")
             if (NOT MSYS_BASH)
                 message(FATAL_ERROR "Specify MSYS installation path")
             endif(NOT MSYS_BASH)
-            
+
             set(MINGW_MAKE ${CMAKE_MAKE_PROGRAM})
             message(WARNING "Assuming your make program is a sibling of your compiler (resides in same directory)")
-        elseif(NOT (CYGWIN OR MSYS))
-            message(FATAL_ERROR "Unsupported compiler infrastructure")
+#        elseif(NOT (CYGWIN OR MSYS))
+#            message(FATAL_ERROR "Unsupported compiler infrastructure")
         endif(MINGW)
-        
+
         set(MAKE_PROGRAM ${CMAKE_MAKE_PROGRAM})
     elseif(NOT UNIX)
         message(FATAL_ERROR "Unsupported platform")
@@ -105,17 +105,17 @@ else()
     # python helper script for corrent building environment
     set(BUILD_ENV_TOOL ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/scripts/building_env.py ${OS} ${MSYS_BASH} ${MINGW_MAKE})
 
-    # disable everything we dont need
-    set(CONFIGURE_OPENSSL_MODULES no-cast no-md2 no-md4 no-mdc2 no-rc4 no-rc5 no-engine no-idea no-mdc2 no-rc5 no-camellia no-ssl3 no-heartbeats no-gost enable-deprecated no-capieng no-comp no-dtls no-psk no-srp no-dso no-dsa no-rc2 no-des)
+    # no-dsa no-rc2 no-des break tests, therefore we need them
+    set(CONFIGURE_OPENSSL_MODULES enable-ec_nistp_64_gcc_128 no-cast no-md2 no-md4 no-mdc2 no-rc4 no-rc5 no-idea no-camellia no-ssl3 no-heartbeats no-gost enable-deprecated no-capieng no-comp no-dtls no-psk no-srp no-dso no-whirlpool)
 
     # additional configure script parameters
-    set(CONFIGURE_OPENSSL_PARAMS --libdir=lib)
-    
+    set(CONFIGURE_OPENSSL_PARAMS --api=1.0.0 --libdir=lib)
+
     # set install command depending of choice on man page generation
     if (OPENSSL_INSTALL_MAN)
         set(INSTALL_OPENSSL_MAN "install_docs")
     endif()
-    
+
     # disable building tests
     if (NOT OPENSSL_ENABLE_TESTS)
         if (${OPENSSL_BUILD_VERSION} VERSION_LESS 1.1.1)
@@ -131,19 +131,19 @@ else()
         set(COMMAND_CONFIGURE ./Configure ${CONFIGURE_OPENSSL_PARAMS} --cross-compile-prefix=${CROSS_PREFIX} ${CROSS_TARGET} ${CONFIGURE_OPENSSL_MODULES} --prefix=/usr/local/)
         set(COMMAND_TEST "true")
     elseif(CROSS_ANDROID)
-        
-        # Android specific configuration options
-        set(CONFIGURE_OPENSSL_MODULES ${CONFIGURE_OPENSSL_MODULES} no-hw)
-                
+
+        set(CFLAGS ${CMAKE_C_FLAGS})
+        set(CXXFLAGS ${CMAKE_CXX_FLAGS})
+
         # silence warnings about unused arguments (Clang specific)
         set(CFLAGS "${CMAKE_C_FLAGS} -Qunused-arguments")
         set(CXXFLAGS "${CMAKE_CXX_FLAGS} -Qunused-arguments")
-    
+
         # required environment configuration is already set (by e.g. ndk) so no need to fiddle around with all the OpenSSL options ...
         if (NOT ANDROID)
             message(FATAL_ERROR "Use NDK cmake toolchain or cmake android autoconfig")
         endif()
-        
+
         if (ARMEABI_V7A)
             set(OPENSSL_PLATFORM "arm")
             set(CONFIGURE_OPENSSL_PARAMS ${CONFIGURE_OPENSSL_PARAMS} "-march=armv7-a")
@@ -154,21 +154,32 @@ else()
                 set(OPENSSL_PLATFORM ${CMAKE_ANDROID_ARCH_ABI})
             endif()
         endif()
-                
+
         # ... but we have to convert all the CMake options to environment variables!
         set(PATH "${ANDROID_TOOLCHAIN_ROOT}/bin/:${ANDROID_TOOLCHAIN_ROOT}/${ANDROID_TOOLCHAIN_NAME}/bin/")
         set(LDFLAGS ${CMAKE_MODULE_LINKER_FLAGS})
-        
-        set(COMMAND_CONFIGURE ./Configure android-${OPENSSL_PLATFORM} ${CONFIGURE_OPENSSL_PARAMS} ${CONFIGURE_OPENSSL_MODULES})
+
+        # have to surround variables with double quotes, otherwise they will be merged together without any separator
+        set(CC "${CMAKE_C_COMPILER} ${CMAKE_C_COMPILE_OPTIONS_EXTERNAL_TOOLCHAIN}${CMAKE_C_COMPILER_EXTERNAL_TOOLCHAIN} ${CFLAGS} -target ${CMAKE_C_COMPILER_TARGET}")
+
+        message(STATUS "AS: ${AS}")
+        message(STATUS "AR: ${AR}")
+        message(STATUS "LD: ${LD}")
+        message(STATUS "LDFLAGS: ${LDFLAGS}")
+        message(STATUS "CC: ${CC}")
+        message(STATUS "OPENSSL_PLATFORM: ${OPENSSL_PLATFORM}")
+        message(STATUS "ANDROID_TOOLCHAIN_ROOT: ${ANDROID_TOOLCHAIN_ROOT}")
+
+        set(COMMAND_CONFIGURE ./Configure ${ANDROID_STRING}-${OPENSSL_PLATFORM} ${CONFIGURE_OPENSSL_PARAMS} ${CONFIGURE_OPENSSL_MODULES})
         set(COMMAND_TEST "true")
     else()                   # detect host system automatically
         set(COMMAND_CONFIGURE ./config ${CONFIGURE_OPENSSL_PARAMS} ${CONFIGURE_OPENSSL_MODULES})
-        
+
         if (NOT COMMAND_TEST)
             set(COMMAND_TEST ${BUILD_ENV_TOOL} <SOURCE_DIR> ${MAKE_PROGRAM} test)
         endif()
     endif()
-    
+
     # add openssl target
     ExternalProject_Add(openssl
 #        URL https://mirror.viaduck.org/openssl/openssl-${OPENSSL_BUILD_VERSION}.tar.gz
@@ -188,6 +199,10 @@ else()
         COMMAND ${BUILD_ENV_TOOL} <SOURCE_DIR> ${MAKE_PROGRAM} DESTDIR=${CMAKE_CURRENT_BINARY_DIR} install_sw ${INSTALL_OPENSSL_MAN}
         COMMAND ${CMAKE_COMMAND} -G ${CMAKE_GENERATOR} ${CMAKE_BINARY_DIR}                    # force CMake-reload
 
+        COMMAND cp -r ${OPENSSL_PREFIX}/usr/ ${OPENSSL_PREFIX}/..
+
+        LOG_CONFIGURE 1
+        LOG_BUILD 1
         LOG_INSTALL 1
     )
 
@@ -199,6 +214,8 @@ else()
         DEPENDERS download
         ALWAYS ON
     )
+
+    ExternalProject_Add_StepTargets(openssl install)
 
     # set, don't abort if it fails (due to variables being empty). To realize this we must only call git if the configs
     # are set globally, otherwise do a no-op command ("echo 1", since "true" is not available everywhere)
