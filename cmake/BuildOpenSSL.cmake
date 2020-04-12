@@ -35,7 +35,7 @@ find_package(PythonInterp 3 REQUIRED)
 find_program(PATCH_PROGRAM patch)
 if (NOT PATCH_PROGRAM)
     message(FATAL_ERROR "Cannot find patch utility. This is only required for Android cross-compilation but due to script complexity "
-                        "the requirement is always enforced")
+            "the requirement is always enforced")
 endif()
 
 # set variables
@@ -69,8 +69,8 @@ else()
 
             set(MINGW_MAKE ${CMAKE_MAKE_PROGRAM})
             message(WARNING "Assuming your make program is a sibling of your compiler (resides in same directory)")
-#        elseif(NOT (CYGWIN OR MSYS))
-#            message(FATAL_ERROR "Unsupported compiler infrastructure")
+        elseif(NOT (CYGWIN OR MSYS))
+            message(FATAL_ERROR "Unsupported compiler infrastructure")
         endif(MINGW)
 
         set(MAKE_PROGRAM ${CMAKE_MAKE_PROGRAM})
@@ -113,22 +113,17 @@ else()
 
     # set install command depending of choice on man page generation
     if (OPENSSL_INSTALL_MAN)
-        set(INSTALL_OPENSSL_MAN "install_docs")
+        set(INSTALL_OPENSSL "install")
+    else()
+        set(INSTALL_OPENSSL "install_sw")
     endif()
 
-    # disable building tests
-    if (NOT OPENSSL_ENABLE_TESTS)
-        if (${OPENSSL_BUILD_VERSION} VERSION_LESS 1.1.1)
-            set(CONFIGURE_OPENSSL_MODULES ${CONFIGURE_OPENSSL_MODULES} no-unit-test)
-        else()
-            set(CONFIGURE_OPENSSL_MODULES ${CONFIGURE_OPENSSL_MODULES} no-tests)
-        endif()
-        set(COMMAND_TEST "true")
-    endif()
+    # set OpenSSL API compatibility version
+    #    add_definitions(-DOPENSSL_API_COMPAT=0x10100000L)
 
     # cross-compiling
     if (CROSS)
-        set(COMMAND_CONFIGURE ./Configure ${CONFIGURE_OPENSSL_PARAMS} --cross-compile-prefix=${CROSS_PREFIX} ${CROSS_TARGET} ${CONFIGURE_OPENSSL_MODULES} --prefix=/usr/local/)
+        set(COMMAND_CONFIGURE ./Configure ${CONFIGURE_OPENSSL_PARAMS} --cross-compile-prefix=${CROSS_PREFIX} ${CROSS_TARGET} ${CONFIGURE_OPENSSL_MODULES})
         set(COMMAND_TEST "true")
     elseif(CROSS_ANDROID)
 
@@ -136,8 +131,8 @@ else()
         set(CXXFLAGS ${CMAKE_CXX_FLAGS})
 
         # silence warnings about unused arguments (Clang specific)
-        set(CFLAGS "${CMAKE_C_FLAGS} -Qunused-arguments")
-        set(CXXFLAGS "${CMAKE_CXX_FLAGS} -Qunused-arguments")
+        set(CFLAGS "${CFLAGS} -Qunused-arguments")
+        set(CXXFLAGS "${CXXFLAGS} -Qunused-arguments")
 
         # required environment configuration is already set (by e.g. ndk) so no need to fiddle around with all the OpenSSL options ...
         if (NOT ANDROID)
@@ -145,18 +140,32 @@ else()
         endif()
 
         if (ARMEABI_V7A)
-            set(OPENSSL_PLATFORM "arm")
+            set(OPENSSL_PLATFORM "armeabi")
             set(CONFIGURE_OPENSSL_PARAMS ${CONFIGURE_OPENSSL_PARAMS} "-march=armv7-a")
         else()
             if (CMAKE_ANDROID_ARCH_ABI MATCHES "arm64-v8a")
-                set(OPENSSL_PLATFORM "arm64")
+                set(OPENSSL_PLATFORM "aarch64")
             else()
                 set(OPENSSL_PLATFORM ${CMAKE_ANDROID_ARCH_ABI})
             endif()
         endif()
 
+        set(ANDROID_STRING "android")
+        if (CMAKE_ANDROID_ARCH_ABI MATCHES "64")
+            set(ANDROID_STRING "${ANDROID_STRING}64")
+        endif()
+
+        # copy over both sysroots to a common sysroot (workaround OpenSSL failing without one single sysroot)
+        string(REPLACE "-clang" "" ANDROID_TOOLCHAIN_NAME ${ANDROID_TOOLCHAIN_NAME})
+        file(COPY ${ANDROID_TOOLCHAIN_ROOT}/sysroot/usr/lib/${ANDROID_TOOLCHAIN_NAME}/${ANDROID_PLATFORM_LEVEL}/ DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/sysroot/usr/lib/)
+        file(COPY ${ANDROID_TOOLCHAIN_ROOT}/sysroot/usr/lib/${ANDROID_TOOLCHAIN_NAME}/ DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/sysroot/usr/lib/ PATTERN *.*)
+        file(COPY ${CMAKE_SYSROOT}/usr/include DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/sysroot/usr/)
+
         # ... but we have to convert all the CMake options to environment variables!
-        set(PATH "${ANDROID_TOOLCHAIN_ROOT}/bin/:${ANDROID_TOOLCHAIN_ROOT}/${ANDROID_TOOLCHAIN_NAME}/bin/")
+        set(CROSS_SYSROOT ${CMAKE_CURRENT_BINARY_DIR}/sysroot/)
+        set(AS ${CMAKE_ASM_COMPILER})
+        set(AR ${CMAKE_AR})
+        set(LD ${CMAKE_LINKER})
         set(LDFLAGS ${CMAKE_MODULE_LINKER_FLAGS})
 
         # have to surround variables with double quotes, otherwise they will be merged together without any separator
@@ -174,46 +183,45 @@ else()
         set(COMMAND_TEST "true")
     else()                   # detect host system automatically
         set(COMMAND_CONFIGURE ./config ${CONFIGURE_OPENSSL_PARAMS} ${CONFIGURE_OPENSSL_MODULES})
-
-        if (NOT COMMAND_TEST)
-            set(COMMAND_TEST ${BUILD_ENV_TOOL} <SOURCE_DIR> ${MAKE_PROGRAM} test)
-        endif()
+        set(COMMAND_TEST ${BUILD_ENV_TOOL} <SOURCE_DIR> ${MAKE_PROGRAM} test)
     endif()
 
     # add openssl target
     ExternalProject_Add(openssl
-#        URL https://mirror.viaduck.org/openssl/openssl-${OPENSSL_BUILD_VERSION}.tar.gz
-        URL ${OPENSSL_ARCHIVE_LOCATION}/openssl-${OPENSSL_BUILD_VERSION}.tar.gz
-        ${OPENSSL_CHECK_HASH}
-        UPDATE_COMMAND ""
+            #        URL https://mirror.viaduck.org/openssl/openssl-${OPENSSL_BUILD_VERSION}.tar.gz
+            URL ${OPENSSL_ARCHIVE_LOCATION}/openssl-${OPENSSL_BUILD_VERSION}.tar.gz
+            ${OPENSSL_CHECK_HASH}
+            UPDATE_COMMAND ""
 
-        CONFIGURE_COMMAND ${BUILD_ENV_TOOL} <SOURCE_DIR> ${COMMAND_CONFIGURE}
+            CONFIGURE_COMMAND ${BUILD_ENV_TOOL} <SOURCE_DIR> ${COMMAND_CONFIGURE}
+            PATCH_COMMAND ${PATCH_PROGRAM} -p1 --forward -r - < ${CMAKE_CURRENT_SOURCE_DIR}/patches/openssl-android-clang.patch || true
+            COMMAND ${PATCH_PROGRAM} -p1 --forward -r - < ${CMAKE_CURRENT_SOURCE_DIR}/patches/configurations-10-main.conf-add-android64-x86_64-tar.patch || true
 
-        BUILD_COMMAND ${BUILD_ENV_TOOL} <SOURCE_DIR> ${MAKE_PROGRAM} -j ${NUM_JOBS}
-        BUILD_BYPRODUCTS ${OPENSSL_LIBSSL_PATH} ${OPENSSL_LIBCRYPTO_PATH}
+            BUILD_COMMAND ${BUILD_ENV_TOOL} <SOURCE_DIR> ${MAKE_PROGRAM} -j ${NUM_JOBS}
+            BUILD_BYPRODUCTS ${OPENSSL_LIBSSL_PATH} ${OPENSSL_LIBCRYPTO_PATH}
 
-        TEST_BEFORE_INSTALL 1
-        TEST_COMMAND ${COMMAND_TEST}
+            TEST_BEFORE_INSTALL 1
+            TEST_COMMAND ${COMMAND_TEST}
 
-        INSTALL_COMMAND ${BUILD_ENV_TOOL} <SOURCE_DIR> ${PERL_PATH_FIX_INSTALL}
-        COMMAND ${BUILD_ENV_TOOL} <SOURCE_DIR> ${MAKE_PROGRAM} DESTDIR=${CMAKE_CURRENT_BINARY_DIR} install_sw ${INSTALL_OPENSSL_MAN}
-        COMMAND ${CMAKE_COMMAND} -G ${CMAKE_GENERATOR} ${CMAKE_BINARY_DIR}                    # force CMake-reload
+            INSTALL_COMMAND ${BUILD_ENV_TOOL} <SOURCE_DIR> ${PERL_PATH_FIX_INSTALL}
+            COMMAND ${BUILD_ENV_TOOL} <SOURCE_DIR> ${MAKE_PROGRAM} DESTDIR=${CMAKE_CURRENT_BINARY_DIR} ${INSTALL_OPENSSL}
+            COMMAND ${CMAKE_COMMAND} -G ${CMAKE_GENERATOR} ${CMAKE_BINARY_DIR}                    # force CMake-reload
 
-        COMMAND cp -r ${OPENSSL_PREFIX}/usr/ ${OPENSSL_PREFIX}/..
+            COMMAND cp -r ${OPENSSL_PREFIX}/usr/ ${OPENSSL_PREFIX}/..
 
-        LOG_CONFIGURE 1
-        LOG_BUILD 1
-        LOG_INSTALL 1
-    )
+            LOG_CONFIGURE 1
+            LOG_BUILD 1
+            LOG_INSTALL 1
+            )
 
     # set git config values to openssl requirements (no impact on linux though)
     ExternalProject_Add_Step(openssl setGitConfig
-        COMMAND ${GIT_EXECUTABLE} config --global core.autocrlf false
-        COMMAND ${GIT_EXECUTABLE} config --global core.eol lf
-        DEPENDEES
-        DEPENDERS download
-        ALWAYS ON
-    )
+            COMMAND ${GIT_EXECUTABLE} config --global core.autocrlf false
+            COMMAND ${GIT_EXECUTABLE} config --global core.eol lf
+            DEPENDEES
+            DEPENDERS download
+            ALWAYS ON
+            )
 
     ExternalProject_Add_StepTargets(openssl install)
 
@@ -233,17 +241,17 @@ else()
 
     # set git config values to previous values
     ExternalProject_Add_Step(openssl restoreGitConfig
-    # unset first (is required, since old value could be omitted, which wouldn't take any effect in "set"
-        COMMAND ${GIT_EXECUTABLE} config --global --unset core.autocrlf
-        COMMAND ${GIT_EXECUTABLE} config --global --unset core.eol
+            # unset first (is required, since old value could be omitted, which wouldn't take any effect in "set"
+            COMMAND ${GIT_EXECUTABLE} config --global --unset core.autocrlf
+            COMMAND ${GIT_EXECUTABLE} config --global --unset core.eol
 
-        COMMAND ${GIT_CORE_AUTOCRLF_CMD}
-        COMMAND ${GIT_CORE_EOL_CMD}
+            COMMAND ${GIT_CORE_AUTOCRLF_CMD}
+            COMMAND ${GIT_CORE_EOL_CMD}
 
-        DEPENDEES download
-        DEPENDERS configure
-        ALWAYS ON
-    )
+            DEPENDEES download
+            DEPENDERS configure
+            ALWAYS ON
+            )
 
     # write environment to file, is picked up by python script
     get_cmake_property(_variableNames VARIABLES)
